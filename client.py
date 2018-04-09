@@ -1,7 +1,11 @@
 import re
+import sys
+import time
+import socket
 import argparse
-from socket import *
 from urllib.parse import urlparse
+
+BUFFER_SIZE = 2048
 
 
 class Client:
@@ -12,18 +16,60 @@ class Client:
 		self.hostname = parsed['hostname']
 		self.path = parsed['path']
 		self.port = parsed['port']
-		self.socket = socket(AF_INET, SOCK_STREAM)
+		try:
+			self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		except socket.error:
+			print('Falha ao criar o socket')
+			sys.exit()
+		print('Socket criado\n')
+
+	def make_request(self):
+		request = 'GET {} {}/1.1\r\nHost:{}\r\nConnection: close\r\n\r\n'.format(self.path, self.protocol, self.hostname)
+		return bytes(request.encode('utf-8'))
+
+	def recv_response(self, timeout=1):
+		# non-blocking socket
+		self.socket.setblocking(False)
+
+		response = []
+		data = ''
+
+		start = time.time()
+		while True:
+			# se tiver algum dado, interrompe apos o timeout
+			if response and time.time() - start > timeout:
+				break
+
+			# se não tiver nenhum dado, espera um pouco mais
+			elif time.time() - start > timeout * 2:
+				break
+
+			try:
+				data = self.socket.recv(BUFFER_SIZE)
+				if data:
+					response.append(data)
+					# reinicia a contagem de tempo
+					start = time.time()
+			except:
+				pass
+
+		# junta as partes da resposta
+		return b''.join(response)
 
 	def run(self):
 		self.socket.connect((self.hostname, self.port))
 
-		request = input('Input lowercase sentence: ')
+		request = self.make_request()
 
-		self.socket.send(bytes(request.encode('utf-8')))
+		try:
+			self.socket.send(request)
+		except socket.error:
+			print('Falha ao enviar requisição')
+			sys.exit()
 
-		response = self.socket.recv(1024)
-		print('From Server:\n')
-		print(str(response, 'utf-8'))
+		response = self.recv_response()
+
+		print(response.decode('utf-8'))
 
 		self.socket.close()
 
@@ -37,7 +83,7 @@ class Client:
 			url = url.replace(':' + str(port), '')
 		o = urlparse(url)
 		parsed_url = dict()
-		parsed_url['protocol'] = o.scheme if o.scheme else 'http'
+		parsed_url['protocol'] = o.scheme.upper() if o.scheme else 'HTTP'
 		parsed_url['hostname'] = o.netloc
 		parsed_url['path'] = o.path if o.path else '/'
 		parsed_url['port'] = port if port else 80
