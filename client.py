@@ -1,9 +1,11 @@
 import re
+import os
 import sys
 import time
 import socket
 import argparse
 from urllib.parse import urlparse
+from response import Response
 
 BUFFER_SIZE = 2048
 
@@ -67,11 +69,42 @@ class Client:
 			print('Falha ao enviar requisição')
 			sys.exit()
 
-		response = self.recv_response()
+		response_raw = self.recv_response()
+		response = Response(response_raw)
 
-		print(response.decode('utf-8'))
+		self.write_file(response)
 
 		self.socket.close()
+		print('Conexão fechada')
+
+	def write_file(self, response):
+		content_type = response.headers['Content-Type']
+		path = 'temp/' + self.hostname
+
+		ext = ''
+		if content_type == 'text/plain':
+			ext = '.txt'
+		elif content_type == 'image/jpeg':
+			ext = '.jpg'
+		elif content_type == 'application/json':
+			ext = '.json'
+		else:
+			ext = '.html'
+
+		os.makedirs(path, exist_ok=True)
+		os.chdir(path)
+
+		filename = self.path.rsplit('/', 1)[1]
+		if filename == '':
+			filename = 'index'
+		if response.status['code'] != 200:
+			filename = str(response.status['code'])
+		if not filename.endswith(ext):
+			filename += ext
+
+		file = open(filename, "wb")
+		file.write(response.data)
+		file.close()
 
 	@staticmethod
 	def parse_url(url):
@@ -99,7 +132,7 @@ class Client:
 
 def main():
 
-	parser = argparse.ArgumentParser(description='Client HTTP')
+	parser = argparse.ArgumentParser(description='Client TCP')
 	parser.add_argument('-u', '--url', type=str, default='http://localhost:12000',
 						help='Server URL (default is "http://localhost:12000"')
 
