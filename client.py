@@ -1,5 +1,6 @@
 import re
 import os
+import ssl
 import sys
 import time
 import socket
@@ -13,6 +14,7 @@ BUFFER_SIZE = 2048
 class Client:
 
 	def __init__(self, url):
+		# faz o parse na url
 		parsed = Client.parse_url(url)
 		self.protocol = parsed['protocol']
 		self.hostname = parsed['hostname']
@@ -29,7 +31,7 @@ class Client:
 		request = 'GET {} {}/1.1\r\nHost:{}\r\nConnection: close\r\n\r\n'.format(self.path, self.protocol, self.hostname)
 		return bytes(request.encode('utf-8'))
 
-	def recv_response(self, timeout=1):
+	def recv_response(self, timeout=2):
 		# non-blocking socket
 		self.socket.setblocking(False)
 
@@ -60,8 +62,16 @@ class Client:
 
 	def run(self):
 		self.socket.connect((self.hostname, self.port))
+		if self.port == 443:
+			self.socket = ssl.wrap_socket(self.socket, keyfile=None, certfile=None,
+					server_side=False, cert_reqs=ssl.CERT_NONE, ssl_version=ssl.PROTOCOL_SSLv23)
 
+		# cria a string de requisição
 		request = self.make_request()
+
+		print('\n------------------ REQUEST ------------------\n')
+		print(request.decode())
+		print('\n----------------------------------------------')
 
 		try:
 			self.socket.send(request)
@@ -69,13 +79,28 @@ class Client:
 			print('Falha ao enviar requisição')
 			sys.exit()
 
+		# obtem a resposta do servidor
 		response_raw = self.recv_response()
 		response = Response(response_raw)
 
-		self.write_file(response)
+		# log
+		response.print()
+
+		# se for código 200, escreve o arquivo
+		if response.status['code'] == 200:
+			self.write_file(response)
+			print('Conexão fechada na porta ', self.port)
+
+		# se houver redirecionamento retorna o código e a url
+		elif str(response.status['code']).startswith('3'):
+			return response.status['code'], response.headers['Location']
+
+		# se houver erro, baixa o html
+		elif str(response.status['code']).startswith('4'):
+			self.write_file(response)
 
 		self.socket.close()
-		print('Conexão fechada')
+		return response.status['code']
 
 	def write_file(self, response):
 		content_type = response.headers['Content-Type']
@@ -91,6 +116,7 @@ class Client:
 		else:
 			ext = '.html'
 
+		# cria os diretórios para guardar os arquivos
 		os.makedirs(path, exist_ok=True)
 		os.chdir(path)
 
@@ -102,6 +128,7 @@ class Client:
 		if not filename.endswith(ext):
 			filename += ext
 
+		# escreve o arquivo
 		file = open(filename, "wb")
 		file.write(response.data)
 		file.close()
@@ -120,6 +147,8 @@ class Client:
 		parsed_url['hostname'] = o.netloc
 		parsed_url['path'] = o.path if o.path else '/'
 		parsed_url['port'] = port if port else 80
+		if url.startswith('https://'):
+			parsed_url['port'] = 443
 		return parsed_url
 
 	def print(self):
@@ -128,7 +157,7 @@ class Client:
 		print('Hostname: ', self.hostname)
 		print('Path: ', self.path)
 		print('Port: ', self.port)
-
+		print('===========================')
 
 def main():
 
@@ -139,7 +168,13 @@ def main():
 	args = parser.parse_args()
 	url = args.url
 	client = Client(url)
-	client.run()
+	client.print()
+	code, location = client.run()
+	if str(code).startswith('3'):
+		print('\n################## REDIRECIONAMENTO ##################\n')
+		client = Client(location)
+		client.print()
+		client.run()
 
 
 if __name__ == "__main__":
