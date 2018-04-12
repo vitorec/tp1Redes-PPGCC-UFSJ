@@ -5,6 +5,7 @@ import argparse
 from io import StringIO
 
 BUFFER_SIZE = 2048
+PUBLIC = os.path.join(os.getcwd(), 'public')
 
 
 class Server:
@@ -21,13 +22,16 @@ class Server:
 
 	def initialize(self):
 		"""Configura o socket"""
+
 		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.socket.bind((self.host, self.port))
 		self.socket.listen(1)
-		os.chdir('public')
+		# os.chdir('public')
 		print('Server pronto\n')
 
 	def run(self):
+		"""Recebe e trata as requisições"""
+
 		client_socket, address = self.socket.accept()
 		request = client_socket.recv(BUFFER_SIZE).decode('utf-8')
 		print(request)
@@ -41,7 +45,7 @@ class Server:
 			pass
 
 		# trata a requisição
-		response = Server.handle_request(request)
+		response = self.handle_request(request)
 
 		try:
 			# envia a resposta
@@ -52,6 +56,8 @@ class Server:
 
 	@staticmethod
 	def extract_headers(request):
+		"""Extrai os cabeçalhos da requisição"""
+
 		headers = dict()
 		first_line = request.split('\r\n\r\n')[0].split('\r\n', 1)[0]
 		headers['Method'] = first_line.split(' ')[0]
@@ -70,14 +76,16 @@ class Server:
 
 	@staticmethod
 	def print_headers(headers):
+		"""Exibe os cabeçalhos da requisição"""
+
 		print('Cabeçalhos:')
 		for key, value in headers.items():
 			print('{0:<30}: {1:<50}'.format(key, value))
 		print('')
 
-	@staticmethod
-	def handle_request(request):
+	def handle_request(self, request):
 		"""Trata a requisição"""
+
 		response = ''
 		request_error = False
 		path = ''
@@ -97,7 +105,6 @@ class Server:
 
 		# se a requisição estiver correta
 		if not request_error:
-
 			if path == '/':
 				# se encontrar o index.html na raiz
 				if os.path.isfile('index.html'):
@@ -106,37 +113,58 @@ class Server:
 				else:
 					response = Server.list_files()
 			else:
-				files = os.listdir()
-				file = path[1:]
-				# envia o arquivo se for encontrado
-				if file in files:
-					response = Server.read_file(file)
-				# 404 se não existir
+				current_path = os.path.join(PUBLIC, os.path.normpath(path[1:]))
+
+				# se o caminho for um arquivo
+				if os.path.isfile(current_path):
+					response = Server.read_file(current_path)
+				# se o caminho for um diretório
+				elif os.path.isdir(current_path):
+					file_path = os.path.join(current_path, 'index.html')
+					# se existir um index.html no diretório
+					if os.path.isfile(file_path):
+						response = Server.read_file(file_path)
+					# se não, faz a listagem de arquivos do diretório
+					else:
+						response = Server.list_files(path)
 				else:
-					response = Server.error_message(404, '404 file not found')
+					files = os.listdir()
+					file = path[1:]
+					# envia o arquivo se for encontrado
+					if file in files:
+						response = Server.read_file(file)
+					# 404 se não existir
+					else:
+						response = Server.error_message(404, '404 file not found')
 
 		return response
 
 	@staticmethod
 	def read_file(file):
 		"""Monta a resposta com os bytes do arquivo"""
+
 		ext = file.split('.')[1]
 		content_type = 'text/html'
 		if ext == 'jpg' or ext == 'jpeg':
 			content_type = 'image/jpeg'
 		elif ext == 'ico':
 			content_type = 'image/x-icon'
-		print(file)
 		return 'HTTP/1.1 200 OK\r\nContent-Type: {}\r\n\r\n'.format(content_type).encode('utf-8') + open(file, 'rb').read()
 
 	@staticmethod
-	def list_files():
+	def list_files(path=''):
 		"""Monta a resposta com a listagem de arquivos na raiz"""
-		files = os.listdir()
+
+		current_path = os.path.join(PUBLIC, os.path.normpath(path[1:]))
+		files = os.listdir(current_path)
 		list = ''
 		for file in files:
-			size = Server.get_file_size(file)
-			list += "<tr><td><a href=/{0}>{0}</a></td><td>{1}</td></tr>".format(file, size)
+			# file_path = os.path.join(current_path, file)
+			file_url = path + '/' + file
+			size = ''
+			if os.path.isfile(file):
+				size = Server.get_file_size(file)
+			list += "<tr><td><a href={0}>{1}</a></td><td>{1}</td></tr>".format(file_url, file, size)
 
 		style = '''<style>
 			table {
@@ -163,6 +191,7 @@ class Server:
 	@staticmethod
 	def error_message(code, message):
 		"""Resposta com mensagem de erro"""
+
 		return 'HTTP/1.1 {} ERROR\nContent-Type: text/html\n\n' \
 			'<!DOCTYPE html><html lang="pt-br"><meta charset="UTF-8">' \
 			'<body><h1>{}</h1></body></html>'.format(code, message).encode('utf-8')
@@ -170,8 +199,7 @@ class Server:
 	@staticmethod
 	def get_file_size(file):
 		"""Obtem o tamanho do arquivo"""
-		if os.path.isdir(file):
-			return ''
+
 		file_size = os.stat(file).st_size
 		size = ''
 		for count in ['Bytes', 'KB', 'MB', 'GB']:
