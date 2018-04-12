@@ -7,7 +7,7 @@ class Response:
 		self.status = Response.get_status(response)
 		self.headers = Response.extract_headers(response)
 		self.data = Response.extract_data(response)
-
+		
 	@staticmethod
 	def get_status(response):
 		"""Obtem o status code da resposta"""
@@ -36,6 +36,7 @@ class Response:
 	@staticmethod
 	def extract_data(response):
 		"""Extrai os dados da resposta"""
+		data = ''
 		if b'\r\n' in response[:40]:
 			data = response.split(b'\r\n\r\n', 1)[1]
 		elif b'\n' in response[:40]:

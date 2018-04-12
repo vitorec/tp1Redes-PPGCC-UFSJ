@@ -16,11 +16,24 @@ Desenvolver os módulos cliente e servidor Web usando sockets
 
 ### Como executar
 
-```
+#### - Client
+* Exibir ajuda:
+    ```
+    python client.py -h
+    ```
+* Como executar:
+    ```
+    python client.py
+    python client.py -u www.exemplo.com
+    ```
 
-```
-
-
-
-
-***
+#### - Server
+* Exibir ajuda:
+    ```
+    python server.py -h
+    ```
+* Como executar:
+    ```
+    python server.py
+    python server.py -s [www.exemplo.com] -p [PORTA]
+    ```

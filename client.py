@@ -100,7 +100,7 @@ class Client:
 			self.write_file(response)
 
 		self.socket.close()
-		return response.status['code']
+		return response.status['code'], None
 
 	def write_file(self, response):
 		content_type = response.headers['Content-Type']
@@ -163,7 +163,7 @@ def main():
 
 	parser = argparse.ArgumentParser(description='Client TCP')
 	parser.add_argument('-u', '--url', type=str, default='http://localhost:12000',
-						help='Server URL (default is "http://localhost:12000"')
+						help='A URL que deseja acessar (a URL padrão é "http://localhost:12000"')
 
 	args = parser.parse_args()
 	url = args.url

@@ -77,7 +77,7 @@ class Server:
 
 	@staticmethod
 	def handle_request(request):
-		"""Trada a requisição"""
+		"""Trata a requisição"""
 		response = ''
 		request_error = False
 		path = ''
@@ -182,7 +182,6 @@ class Server:
 		return size
 
 
-
 def main():
 	parser = argparse.ArgumentParser(description='Server TCP')
 	parser.add_argument('-s', '--host', type=str, default='localhost', help='Host (host padrão: "localhost"')
@@ -199,7 +198,6 @@ def main():
 		print('Aguardando nova requisição')
 		server.run()
 		print('-----------------------')
-
 
 
 if __name__ == '__main__':
