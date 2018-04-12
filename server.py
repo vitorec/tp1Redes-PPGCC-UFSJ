@@ -5,7 +5,7 @@ import argparse
 from io import StringIO
 
 BUFFER_SIZE = 2048
-PUBLIC = os.path.join(os.getcwd(), 'public')
+PUBLIC = os.path.normpath(os.path.join(os.getcwd(), 'public'))
 
 
 class Server:
@@ -155,11 +155,16 @@ class Server:
 	def list_files(path=''):
 		"""Monta a resposta com a listagem de arquivos na raiz"""
 
-		current_path = os.path.join(PUBLIC, os.path.normpath(path[1:]))
+		current_path = os.path.normpath(os.path.join(PUBLIC, os.path.normpath(path[1:])))
 		files = os.listdir(current_path)
+		parent_url = ''
+		if current_path != PUBLIC:
+			url = path.rsplit('/', 1)[0]
+			if url == '':
+				url = '/'
+			parent_url = '<div><a id="back" href="{}">Parent</a></div>'.format(url)
 		list = ''
 		for file in files:
-			# file_path = os.path.join(current_path, file)
 			file_url = path + '/' + file
 			size = ''
 			if os.path.isfile(file):
@@ -167,6 +172,10 @@ class Server:
 			list += "<tr><td><a href={0}>{1}</a></td><td>{1}</td></tr>".format(file_url, file, size)
 
 		style = '''<style>
+			div {
+				font-family: arial, sans-serif;
+				margin-bottom: 5px;
+			}
 			table {
 				font-family: arial, sans-serif;
 				border-collapse: collapse;
@@ -181,11 +190,12 @@ class Server:
 				background-color: #eee;
 			}
 			</style>'''
+
 		response = 'HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n' \
 			'<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8">' \
-			'<link rel="icon" type="image/x-icon" href="favicon.ico" />{0}</head>' \
-			'<body><table style="width: 50%"><tr><th>Filename</th><th>Size</th></tr>' \
-			'<tbody>{1}</tbody></table></body></html>'.format(style, list).encode('utf-8')
+			'<link rel="icon" type="image/x-icon" href="favicon.ico" />{}</head>' \
+			'<body>{}<table style="width: 50%"><tr><th>Filename</th><th>Size</th></tr>' \
+			'<tbody>{}</tbody></table></body></html>'.format(parent_url, style, list).encode('utf-8')
 		return response
 
 	@staticmethod
